@@ -1,73 +1,87 @@
 import OpenAI from "openai"
 import { getMemory, saveMemory } from "./memory.js"
-import { searchWeb } from "./tools.js"
-import { searchDocs } from "./rag.js"
+import { webSearch } from "./tools.js"
+import { ragSearch } from "./rag.js"
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+const openai = new OpenAI({
+ apiKey: process.env.OPENAI_API_KEY
 })
 
-const SYSTEM_PROMPT = `
-Você é a Olív-IA, assistente executiva da GNPW.
+export async function runAgent(message, session) {
 
-Regras:
+ const memory = getMemory(session)
 
-- responder qualquer tema
-- respostas completas
-- linguagem profissional
-- usar estrutura quando necessário
-- evitar respostas superficiais
+ let context = ""
 
-Formato recomendado:
+ const text = message.toLowerCase()
 
-Para perguntas complexas:
+ if (
+  text.includes("clima") ||
+  text.includes("tempo") ||
+  text.includes("previsão") ||
+  text.includes("notícia") ||
+  text.includes("hoje")
+ ) {
 
-Contexto  
-Explicação  
-Exemplo  
-Conclusão
+  const web = await webSearch(message)
 
-Nunca revelar tecnologia interna.
+  context += `Informações atualizadas da internet:\n${web}\n\n`
+
+ }
+
+ const rag = await ragSearch(message)
+
+ if (rag) {
+
+  context += `Documentos internos:\n${rag}\n\n`
+
+ }
+
+ const messages = [
+
+  {
+   role: "system",
+   content: `
+Você é a Olív-IA, assistente executiva inteligente da GNPW.
+
+Seu papel é:
+
+- responder perguntas com profundidade
+- analisar informações
+- auxiliar decisões estratégicas
+- usar informações externas quando necessário
 `
+  },
 
-export async function runAgent(message, session){
+  ...memory,
 
-  const memory = getMemory(session)
+  {
+   role: "user",
+   content: `
+Pergunta:
 
-  const webData = await searchWeb(message)
+${message}
 
-  const docData = await searchDocs(message)
+Contexto adicional:
 
-  const response = await client.responses.create({
-
-    model:"gpt-4o",
-
-    input:[
-      {
-        role:"system",
-        content:SYSTEM_PROMPT
-      },
-      ...memory,
-      {
-        role:"user",
-        content:`
-Pergunta: ${message}
-
-Informação da web:
-${webData}
-
-Documentos internos:
-${docData}
+${context}
 `
-      }
-    ]
+  }
 
-  })
+ ]
 
-  const reply = response.output_text
+ const completion = await openai.chat.completions.create({
 
-  saveMemory(session,message,reply)
+  model: "gpt-4o",
+  messages,
+  temperature: 0.3
 
-  return reply
+ })
+
+ const reply = completion.choices[0].message.content
+
+ saveMemory(session, message, reply)
+
+ return reply
 
 }
