@@ -19,19 +19,20 @@ export async function webSearch(query) {
 
   const results = response.data.organic
 
-  if (!results || results.length === 0) {
-   return ""
-  }
+  if (!results) return ""
 
-  const topResults = results.slice(0, 3)
+  const topResults = results.slice(0, 5)
 
-  let text = "Resultados da internet:\n\n"
+  let text = ""
 
   topResults.forEach(r => {
 
-   text += `Título: ${r.title}\n`
-   text += `Resumo: ${r.snippet}\n`
-   text += `Link: ${r.link}\n\n`
+   text += `
+Título: ${r.title}
+Resumo: ${r.snippet}
+Fonte: ${r.link}
+
+`
 
   })
 
@@ -39,7 +40,7 @@ export async function webSearch(query) {
 
  } catch (error) {
 
-  console.log("web search error:", error.message)
+  console.log("Erro web search:", error.message)
 
   return ""
 
