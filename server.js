@@ -8,54 +8,45 @@ dotenv.config()
 const app = express()
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: "1mb" }))
 
-// Health check (útil para testar se o backend está online)
 app.get("/", (req, res) => {
- res.json({
-  status: "online",
-  service: "Olív-IA Backend"
- })
+  res.json({
+    status: "online",
+    service: "Olív-IA Backend"
+  })
 })
 
 app.post("/chat", async (req, res) => {
+  try {
+    const { message, session = "default" } = req.body
 
- try {
+    if (!message || String(message).trim() === "") {
+      return res.status(400).json({
+        reply: "Pergunta inválida."
+      })
+    }
 
-  const { message, session = "default" } = req.body
+    console.log("Pergunta recebida:", message)
+    console.log("Sessão:", session)
 
-  // validação da requisição
-  if (!message || message.trim() === "") {
-   return res.status(400).json({
-    reply: "Pergunta inválida."
-   })
+    const reply = await runAgent(message, session)
+
+    res.json({ reply })
+  } catch (error) {
+    console.error("ERRO NO AGENTE:", error)
+
+    res.status(500).json({
+      reply: "Erro interno da IA."
+    })
   }
-
-  console.log("Pergunta recebida:", message)
-
-  const reply = await runAgent(message, session)
-
-  res.json({ reply })
-
- } catch (error) {
-
-  console.error("ERRO NO AGENTE:", error)
-
-  res.status(500).json({
-   reply: "Erro interno da IA."
-  })
-
- }
-
 })
 
 const PORT = process.env.PORT || 3000
 
 app.listen(PORT, () => {
-
- console.log("===================================")
- console.log(" Olív-IA Backend iniciado ")
- console.log(" Porta:", PORT)
- console.log("===================================")
-
+  console.log("===================================")
+  console.log(" Olív-IA Backend iniciado ")
+  console.log(" Porta:", PORT)
+  console.log("===================================")
 })
