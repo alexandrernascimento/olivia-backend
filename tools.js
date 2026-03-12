@@ -1,21 +1,29 @@
-import OpenAI from "openai"
+import axios from "axios"
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
+export async function webSearch(query) {
 
-export async function searchWeb(query){
+ try {
 
-  const result = await client.responses.create({
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`
 
-    model:"gpt-4o",
+  const response = await axios.get(url)
 
-    tools:[{type:"web_search_preview"}],
+  const data = response.data
 
-    input:query
+  if (data.AbstractText) return data.AbstractText
 
-  })
+  if (data.RelatedTopics.length > 0) {
 
-  return result.output_text
+   return data.RelatedTopics[0].Text
+
+  }
+
+  return "Nenhum resultado relevante encontrado."
+
+ } catch (error) {
+
+  return "Erro ao consultar internet."
+
+ }
 
 }
