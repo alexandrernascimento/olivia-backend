@@ -15,13 +15,13 @@ const tools = [
     function: {
       name: "webSearch",
       description:
-        "Busca informações atuais na internet. Use para notícias, eventos recentes, fatos atuais, pesquisas gerais, empresas, pessoas, lançamentos, tecnologia recente e quando a pergunta depender de dados externos ou atualizados.",
+        "Busca informações atuais na internet. Use para notícias, eventos recentes, fatos atuais, empresas, pessoas, lançamentos, tecnologia recente e qualquer pergunta que dependa de informações externas ou atualizadas.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "Consulta de busca na internet."
+            description: "Consulta para busca na internet."
           }
         },
         required: ["query"],
@@ -34,7 +34,7 @@ const tools = [
     function: {
       name: "getWeather",
       description:
-        "Obtém clima e previsão do tempo para uma cidade. Use quando o usuário perguntar sobre temperatura, clima, chuva ou previsão.",
+        "Obtém clima atual para uma cidade. Use quando o usuário perguntar sobre temperatura, clima, chuva ou previsão do tempo.",
       parameters: {
         type: "object",
         properties: {
@@ -53,7 +53,7 @@ const tools = [
     function: {
       name: "getExchangeRate",
       description:
-        "Obtém cotação entre moedas. Use para dólar, euro, real e outras moedas.",
+        "Obtém cotação atual entre moedas. Use para dólar, euro, real e outras moedas.",
       parameters: {
         type: "object",
         properties: {
@@ -82,7 +82,7 @@ const tools = [
         properties: {
           coin: {
             type: "string",
-            description: "Nome da moeda na API. Ex.: bitcoin"
+            description: "Nome da criptomoeda na API. Ex.: bitcoin"
           }
         },
         required: ["coin"],
@@ -119,10 +119,10 @@ Seu objetivo é ajudar usuários respondendo perguntas com clareza,
 precisão e profundidade sobre qualquer assunto.
 
 Você pode usar:
-
 - seu conhecimento geral
 - informações fornecidas no contexto
 - resultados de buscas externas quando disponíveis
+- documentos internos quando disponíveis
 
 Nunca diga que seu conhecimento termina em 2023.
 
@@ -139,6 +139,11 @@ Regras de comportamento:
 - Se a ferramenta retornar pouco contexto, seja honesta e responda com o melhor que houver.
 - Quando a informação vier de ferramenta, priorize essa informação.
 - Não diga que você não tem acesso à internet se a ferramenta estiver disponível.
+- Não diga que seu treinamento vai até uma data específica.
+- Se a pergunta puder ser respondida sem ferramenta, responda normalmente.
+- Se a pergunta pedir clima, cotação, cripto, notícias ou fatos recentes, use ferramenta.
+- Se a pergunta parecer interna à empresa, use ragSearch.
+- Quando usar ferramenta, sintetize o resultado em uma resposta natural e útil, e não apenas repita dados crus.
 `.trim()
 }
 
@@ -157,31 +162,28 @@ async function executeToolCall(toolCall) {
   try {
     switch (toolName) {
       case "webSearch": {
-        const result = await webSearch(args.query || "")
-        return String(result || "")
+        return String(await webSearch(args.query || "") || "")
       }
 
       case "getWeather": {
-        const result = await getWeather(args.city || "Rio de Janeiro")
-        return String(result || "")
+        return String(await getWeather(args.city || "Rio de Janeiro") || "")
       }
 
       case "getExchangeRate": {
-        const result = await getExchangeRate(
-          (args.base || "USD").toUpperCase(),
-          (args.target || "BRL").toUpperCase()
+        return String(
+          await getExchangeRate(
+            (args.base || "USD").toUpperCase(),
+            (args.target || "BRL").toUpperCase()
+          ) || ""
         )
-        return String(result || "")
       }
 
       case "getCryptoPrice": {
-        const result = await getCryptoPrice(args.coin || "bitcoin")
-        return String(result || "")
+        return String(await getCryptoPrice(args.coin || "bitcoin") || "")
       }
 
       case "ragSearch": {
-        const result = await ragSearch(args.query || "")
-        return String(result || "")
+        return String(await ragSearch(args.query || "") || "")
       }
 
       default:
@@ -193,6 +195,7 @@ async function executeToolCall(toolCall) {
 }
 
 export async function runAgent(message, session = "default") {
+  const cleanMessage = String(message || "").trim()
   const memory = getMemory(session)
 
   const messages = [
@@ -203,11 +206,10 @@ export async function runAgent(message, session = "default") {
     ...memory,
     {
       role: "user",
-      content: message
+      content: cleanMessage
     }
   ]
 
-  // 1) Primeira chamada: o modelo decide se responde direto ou chama ferramenta
   const firstResponse = await openai.chat.completions.create({
     model: MODEL,
     messages,
@@ -218,21 +220,18 @@ export async function runAgent(message, session = "default") {
 
   const firstMessage = firstResponse.choices?.[0]?.message
 
-  // Se não chamou tools, responde direto
   if (!firstMessage?.tool_calls || firstMessage.tool_calls.length === 0) {
     const directReply =
-      firstMessage?.content ||
+      firstMessage?.content?.trim() ||
       "Não consegui gerar uma resposta no momento."
 
-    saveMemory(session, message, directReply)
+    saveMemory(session, cleanMessage, directReply)
     return directReply
   }
 
-  // 2) Se chamou tools, adiciona a mensagem do assistente com os tool_calls
   const toolMessages = [...messages, firstMessage]
 
-  // 3) Executa cada tool call e adiciona o retorno
-  for (const toolCall of firstMessage.tool_calls) {
+  for (const toolCall of firstMessage.tool_calls.slice(0, 5)) {
     const toolResult = await executeToolCall(toolCall)
 
     toolMessages.push({
@@ -242,7 +241,6 @@ export async function runAgent(message, session = "default") {
     })
   }
 
-  // 4) Segunda chamada: o modelo usa os resultados das tools para responder ao usuário
   const finalResponse = await openai.chat.completions.create({
     model: MODEL,
     messages: toolMessages,
@@ -250,9 +248,10 @@ export async function runAgent(message, session = "default") {
   })
 
   const finalReply =
-    finalResponse.choices?.[0]?.message?.content ||
+    finalResponse.choices?.[0]?.message?.content?.trim() ||
+    firstMessage?.content?.trim() ||
     "Não consegui gerar uma resposta no momento."
 
-  saveMemory(session, message, finalReply)
+  saveMemory(session, cleanMessage, finalReply)
   return finalReply
 }
