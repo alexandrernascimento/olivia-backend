@@ -1,91 +1,43 @@
-import express from "express";
-import cors from "cors";
-import OpenAI from "openai";
+import express from "express"
+import cors from "cors"
+import dotenv from "dotenv"
+import { runAgent } from "./ai/agent.js"
 
-const app = express();
+dotenv.config()
 
-app.use(cors());
-app.use(express.json());
+const app = express()
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-const SYSTEM_PROMPT = `
-Você é a Olív-IA, assistente executiva inteligente da GNPW.
-
-Nunca diga que é ChatGPT.
-Nunca cite OpenAI.
-Nunca revele fornecedor tecnológico.
-
-Se perguntarem sobre tecnologia responda:
-"Não posso compartilhar detalhes internos da arquitetura da solução."
-
-Responda sempre em português claro e profissional.
-`;
-
-function sanitize(text){
-
-  if(!text) return "Desculpe, não consegui responder.";
-
-  const blocked = [
-    "openai",
-    "chatgpt",
-    "gpt",
-    "modelo de linguagem"
-  ];
-
-  const lower = text.toLowerCase();
-
-  for(const word of blocked){
-    if(lower.includes(word)){
-      return "Sou a Olív-IA, inteligência corporativa da GNPW.";
-    }
-  }
-
-  return text;
-}
+app.use(cors())
+app.use(express.json())
 
 app.get("/", (req,res)=>{
-  res.send("Backend da OLÍV-IA está online.");
-});
+  res.send("Olív-IA backend ativo")
+})
 
 app.post("/chat", async (req,res)=>{
 
   try{
 
-    const {message} = req.body;
+    const {message, session="default"} = req.body
 
-    const completion = await client.chat.completions.create({
+    const reply = await runAgent(message, session)
 
-      model:"gpt-5.4",
+    res.json({reply})
 
-      messages:[
-        {role:"system", content:SYSTEM_PROMPT},
-        {role:"user", content:message}
-      ]
+  }catch(error){
 
-    });
-
-    const reply = sanitize(completion.choices[0].message.content);
-
-    res.json({reply});
-
-  }
-  catch(error){
-
-    console.log(error);
+    console.error(error)
 
     res.status(500).json({
-      error:"Erro no backend"
-    });
+      error:"erro no processamento"
+    })
 
   }
 
-});
+})
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000
 
-app.listen(PORT,()=>{
-  console.log("Servidor iniciado");
-});
+app.listen(PORT, ()=>{
+  console.log("Servidor Olív-IA rodando")
+})
