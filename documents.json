@@ -1,8 +1,10 @@
 [
-  {
-    "text": "A GNPW é uma empresa focada em inovação e inteligência estratégica."
-  },
-  {
-    "text": "A Olív-IA foi criada para apoiar decisões corporativas."
-  }
+ {
+  "title": "Olív-IA",
+  "content": "A Olív-IA é a assistente executiva inteligente da GNPW."
+ },
+ {
+  "title": "Projeto IA",
+  "content": "A Olív-IA foi criada para apoiar decisões estratégicas e análise de dados."
+ }
 ]
