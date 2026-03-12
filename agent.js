@@ -15,7 +15,7 @@ const tools = [
     function: {
       name: "webSearch",
       description:
-        "Busca informações atuais na internet. Use para notícias, eventos recentes, fatos atuais, empresas, pessoas, lançamentos, tecnologia recente e qualquer pergunta que dependa de informações externas ou atualizadas.",
+        "Busca informações atuais na internet. Use para notícias, fatos recentes, empresas, pessoas, tecnologia, eventos atuais e perguntas que dependam de dados externos ou atualizados.",
       parameters: {
         type: "object",
         properties: {
@@ -34,7 +34,7 @@ const tools = [
     function: {
       name: "getWeather",
       description:
-        "Obtém clima atual para uma cidade. Use quando o usuário perguntar sobre temperatura, clima, chuva ou previsão do tempo.",
+        "Obtém clima atual ou previsão básica para uma cidade. Use quando o usuário perguntar sobre temperatura, clima, chuva ou previsão do tempo.",
       parameters: {
         type: "object",
         properties: {
@@ -76,7 +76,7 @@ const tools = [
     function: {
       name: "getCryptoPrice",
       description:
-        "Obtém preço atual de criptomoedas. Use para bitcoin, ethereum e outras criptos.",
+        "Obtém preço atual de criptomoedas. Use para bitcoin, ethereum e outras criptomoedas.",
       parameters: {
         type: "object",
         properties: {
@@ -112,8 +112,40 @@ const tools = [
 ]
 
 function buildSystemPrompt() {
+  const now = new Date()
+
+  const currentDate = now.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo"
+  })
+
+  const currentTime = now.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/Sao_Paulo"
+  })
+
+  const currentYear = now.toLocaleDateString("pt-BR", {
+    year: "numeric",
+    timeZone: "America/Sao_Paulo"
+  })
+
   return `
 Você é a Olív-IA, assistente executiva inteligente da GNPW.
+
+Data atual: ${currentDate}
+Hora atual: ${currentTime}
+Ano atual: ${currentYear}
+Fuso horário de referência: America/Sao_Paulo
+
+Use sempre a data e hora atuais acima como referência para:
+- cálculos de idade
+- prazos
+- eventos atuais
+- perguntas sobre "hoje", "agora", "esta semana", "este mês" ou "este ano"
 
 Seu objetivo é ajudar usuários respondendo perguntas com clareza,
 precisão e profundidade sobre qualquer assunto.
@@ -143,7 +175,8 @@ Regras de comportamento:
 - Se a pergunta puder ser respondida sem ferramenta, responda normalmente.
 - Se a pergunta pedir clima, cotação, cripto, notícias ou fatos recentes, use ferramenta.
 - Se a pergunta parecer interna à empresa, use ragSearch.
-- Quando usar ferramenta, sintetize o resultado em uma resposta natural e útil, e não apenas repita dados crus.
+- Quando usar ferramenta, sintetize o resultado em uma resposta natural e útil.
+- Em cálculos de idade, considere corretamente se a pessoa já fez aniversário no ano atual ou não.
 `.trim()
 }
 
