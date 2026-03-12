@@ -1,33 +1,31 @@
 const sessions = {}
 
 export function getMemory(session) {
+  if (!sessions[session]) {
+    sessions[session] = []
+  }
 
- if (!sessions[session]) {
-
-  sessions[session] = []
-
- }
-
- return sessions[session]
-
+  return sessions[session]
 }
 
 export function saveMemory(session, user, assistant) {
+  if (!sessions[session]) {
+    sessions[session] = []
+  }
 
- sessions[session].push({
-  role: "user",
-  content: user
- })
+  sessions[session].push({
+    role: "user",
+    content: user
+  })
 
- sessions[session].push({
-  role: "assistant",
-  content: assistant
- })
+  sessions[session].push({
+    role: "assistant",
+    content: assistant
+  })
 
- if (sessions[session].length > 10) {
+  const maxMessages = 12
 
-  sessions[session].shift()
-
- }
-
+  while (sessions[session].length > maxMessages) {
+    sessions[session].shift()
+  }
 }
