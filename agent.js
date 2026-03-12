@@ -1,85 +1,258 @@
 import OpenAI from "openai"
 import { getMemory, saveMemory } from "./memory.js"
-import { webSearch } from "./tools.js"
+import { webSearch, getExchangeRate, getCryptoPrice, getWeather } from "./tools.js"
+import { ragSearch } from "./rag.js"
 
 const openai = new OpenAI({
- apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY
 })
 
-export async function runAgent(message, session = "default") {
+const MODEL = "gpt-4o"
 
- const memory = getMemory(session)
-
- const messages = [
+const tools = [
   {
-   role: "system",
-   content: `
+    type: "function",
+    function: {
+      name: "webSearch",
+      description:
+        "Busca informações atuais na internet. Use para notícias, eventos recentes, fatos atuais, pesquisas gerais, empresas, pessoas, lançamentos, tecnologia recente e quando a pergunta depender de dados externos ou atualizados.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Consulta de busca na internet."
+          }
+        },
+        required: ["query"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "getWeather",
+      description:
+        "Obtém clima e previsão do tempo para uma cidade. Use quando o usuário perguntar sobre temperatura, clima, chuva ou previsão.",
+      parameters: {
+        type: "object",
+        properties: {
+          city: {
+            type: "string",
+            description: "Nome da cidade. Ex.: Rio de Janeiro"
+          }
+        },
+        required: ["city"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "getExchangeRate",
+      description:
+        "Obtém cotação entre moedas. Use para dólar, euro, real e outras moedas.",
+      parameters: {
+        type: "object",
+        properties: {
+          base: {
+            type: "string",
+            description: "Moeda base em código ISO. Ex.: USD"
+          },
+          target: {
+            type: "string",
+            description: "Moeda de destino em código ISO. Ex.: BRL"
+          }
+        },
+        required: ["base", "target"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "getCryptoPrice",
+      description:
+        "Obtém preço atual de criptomoedas. Use para bitcoin, ethereum e outras criptos.",
+      parameters: {
+        type: "object",
+        properties: {
+          coin: {
+            type: "string",
+            description: "Nome da moeda na API. Ex.: bitcoin"
+          }
+        },
+        required: ["coin"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "ragSearch",
+      description:
+        "Consulta documentos internos da empresa. Use quando a pergunta parecer relacionada a informações internas, base de conhecimento, políticas, projetos ou contexto corporativo.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Pergunta a ser buscada nos documentos internos."
+          }
+        },
+        required: ["query"],
+        additionalProperties: false
+      }
+    }
+  }
+]
+
+function buildSystemPrompt() {
+  return `
 Você é a Olív-IA, assistente executiva inteligente da GNPW.
 
-Responda perguntas sobre qualquer assunto com clareza e profundidade.
+Seu objetivo é ajudar usuários respondendo perguntas com clareza,
+precisão e profundidade sobre qualquer assunto.
 
-Se a pergunta exigir informações atuais (notícias, clima, preços, eventos recentes),
-solicite a ferramenta "webSearch".
-`
-  },
+Você pode usar:
 
-  ...memory,
+- seu conhecimento geral
+- informações fornecidas no contexto
+- resultados de buscas externas quando disponíveis
 
-  {
-   role: "user",
-   content: message
+Nunca diga que seu conhecimento termina em 2023.
+
+Se houver informações fornecidas no contexto da conversa,
+utilize-as para gerar respostas atualizadas.
+
+Se não houver dados externos disponíveis, responda usando seu conhecimento geral.
+
+Regras de comportamento:
+- Responda em português do Brasil.
+- Para perguntas simples, responda diretamente.
+- Para perguntas atuais, use ferramentas automaticamente quando necessário.
+- Não invente dados em tempo real.
+- Se a ferramenta retornar pouco contexto, seja honesta e responda com o melhor que houver.
+- Quando a informação vier de ferramenta, priorize essa informação.
+- Não diga que você não tem acesso à internet se a ferramenta estiver disponível.
+`.trim()
+}
+
+function safeParseArgs(rawArgs) {
+  try {
+    return JSON.parse(rawArgs || "{}")
+  } catch {
+    return {}
   }
- ]
+}
 
- // PRIMEIRA RESPOSTA DO MODELO
- const completion = await openai.chat.completions.create({
-  model: "gpt-4o",
-  messages,
-  temperature: 0.3
- })
+async function executeToolCall(toolCall) {
+  const toolName = toolCall.function.name
+  const args = safeParseArgs(toolCall.function.arguments)
 
- let reply = completion.choices[0].message.content
+  try {
+    switch (toolName) {
+      case "webSearch": {
+        const result = await webSearch(args.query || "")
+        return String(result || "")
+      }
 
- // DETECTAR SE PRECISA BUSCAR INTERNET
- const realtimeKeywords = [
-  "hoje",
-  "agora",
-  "clima",
-  "tempo",
-  "previsão",
-  "cotação",
-  "dólar",
-  "bitcoin",
-  "notícia",
-  "últimas",
-  "preço"
- ]
+      case "getWeather": {
+        const result = await getWeather(args.city || "Rio de Janeiro")
+        return String(result || "")
+      }
 
- const needsWebSearch = realtimeKeywords.some(word =>
-  message.toLowerCase().includes(word)
- )
+      case "getExchangeRate": {
+        const result = await getExchangeRate(
+          (args.base || "USD").toUpperCase(),
+          (args.target || "BRL").toUpperCase()
+        )
+        return String(result || "")
+      }
 
- if (needsWebSearch) {
+      case "getCryptoPrice": {
+        const result = await getCryptoPrice(args.coin || "bitcoin")
+        return String(result || "")
+      }
 
-  const webResults = await webSearch(message)
+      case "ragSearch": {
+        const result = await ragSearch(args.query || "")
+        return String(result || "")
+      }
 
-  const secondCompletion = await openai.chat.completions.create({
-   model: "gpt-4o",
-   messages: [
-    ...messages,
-    {
-     role: "system",
-     content: `Informações atualizadas encontradas na internet:\n${webResults}`
+      default:
+        return `Ferramenta desconhecida: ${toolName}`
     }
-   ]
+  } catch (error) {
+    return `Erro ao executar ${toolName}: ${error.message}`
+  }
+}
+
+export async function runAgent(message, session = "default") {
+  const memory = getMemory(session)
+
+  const messages = [
+    {
+      role: "system",
+      content: buildSystemPrompt()
+    },
+    ...memory,
+    {
+      role: "user",
+      content: message
+    }
+  ]
+
+  // 1) Primeira chamada: o modelo decide se responde direto ou chama ferramenta
+  const firstResponse = await openai.chat.completions.create({
+    model: MODEL,
+    messages,
+    tools,
+    tool_choice: "auto",
+    temperature: 0.2
   })
 
-  reply = secondCompletion.choices[0].message.content
+  const firstMessage = firstResponse.choices?.[0]?.message
 
- }
+  // Se não chamou tools, responde direto
+  if (!firstMessage?.tool_calls || firstMessage.tool_calls.length === 0) {
+    const directReply =
+      firstMessage?.content ||
+      "Não consegui gerar uma resposta no momento."
 
- saveMemory(session, message, reply)
+    saveMemory(session, message, directReply)
+    return directReply
+  }
 
- return reply
+  // 2) Se chamou tools, adiciona a mensagem do assistente com os tool_calls
+  const toolMessages = [...messages, firstMessage]
 
+  // 3) Executa cada tool call e adiciona o retorno
+  for (const toolCall of firstMessage.tool_calls) {
+    const toolResult = await executeToolCall(toolCall)
+
+    toolMessages.push({
+      role: "tool",
+      tool_call_id: toolCall.id,
+      content: toolResult || "Sem resultados."
+    })
+  }
+
+  // 4) Segunda chamada: o modelo usa os resultados das tools para responder ao usuário
+  const finalResponse = await openai.chat.completions.create({
+    model: MODEL,
+    messages: toolMessages,
+    temperature: 0.2
+  })
+
+  const finalReply =
+    finalResponse.choices?.[0]?.message?.content ||
+    "Não consegui gerar uma resposta no momento."
+
+  saveMemory(session, message, finalReply)
+  return finalReply
 }
