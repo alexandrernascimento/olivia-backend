@@ -1,22 +1,41 @@
 import axios from "axios"
 
+const SERPER_KEY = process.env.SERPER_API_KEY
+
 export async function webSearch(query) {
 
  try {
 
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`
+  const response = await axios.post(
+   "https://google.serper.dev/search",
+   { q: query },
+   {
+    headers: {
+     "X-API-KEY": SERPER_KEY,
+     "Content-Type": "application/json"
+    }
+   }
+  )
 
-  const response = await axios.get(url, { timeout: 4000 })
+  const results = response.data.organic
 
-  const data = response.data
+  if (!results || results.length === 0) {
+   return ""
+  }
 
-  if (data.AbstractText && data.AbstractText.length > 20)
-   return data.AbstractText
+  const topResults = results.slice(0, 3)
 
-  if (data.RelatedTopics && data.RelatedTopics.length > 0)
-   return data.RelatedTopics[0].Text
+  let text = "Resultados da internet:\n\n"
 
-  return ""
+  topResults.forEach(r => {
+
+   text += `Título: ${r.title}\n`
+   text += `Resumo: ${r.snippet}\n`
+   text += `Link: ${r.link}\n\n`
+
+  })
+
+  return text
 
  } catch (error) {
 
