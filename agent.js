@@ -7,7 +7,7 @@ const openai = new OpenAI({
  apiKey: process.env.OPENAI_API_KEY
 })
 
-export async function runAgent(message, session) {
+export async function runAgent(message, session = "default") {
 
  const memory = getMemory(session)
 
@@ -15,25 +15,45 @@ export async function runAgent(message, session) {
 
  const text = message.toLowerCase()
 
- if (
-  text.includes("clima") ||
-  text.includes("tempo") ||
-  text.includes("previsão") ||
-  text.includes("notícia") ||
-  text.includes("hoje")
- ) {
+ // WEB SEARCH COM PROTEÇÃO
+ try {
 
-  const web = await webSearch(message)
+  if (
+   text.includes("tempo") ||
+   text.includes("clima") ||
+   text.includes("previsão") ||
+   text.includes("notícia") ||
+   text.includes("hoje")
+  ) {
 
-  context += `Informações atualizadas da internet:\n${web}\n\n`
+   const web = await webSearch(message)
+
+   if (web) {
+    context += `Informação da internet:\n${web}\n\n`
+   }
+
+  }
+
+ } catch (err) {
+
+  console.log("Erro web search:", err)
 
  }
 
- const rag = await ragSearch(message)
+ // RAG COM PROTEÇÃO
+ try {
 
- if (rag) {
+  const rag = await ragSearch(message)
 
-  context += `Documentos internos:\n${rag}\n\n`
+  if (rag) {
+
+   context += `Documentos internos:\n${rag}\n\n`
+
+  }
+
+ } catch (err) {
+
+  console.log("Erro rag:", err)
 
  }
 
@@ -44,12 +64,10 @@ export async function runAgent(message, session) {
    content: `
 Você é a Olív-IA, assistente executiva inteligente da GNPW.
 
-Seu papel é:
+Responda sempre de forma clara, direta e útil.
 
-- responder perguntas com profundidade
-- analisar informações
-- auxiliar decisões estratégicas
-- usar informações externas quando necessário
+Se a pergunta for simples, responda diretamente.
+Não diga que precisa de mais contexto.
 `
   },
 
@@ -62,7 +80,7 @@ Pergunta:
 
 ${message}
 
-Contexto adicional:
+Contexto:
 
 ${context}
 `
