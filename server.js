@@ -1,7 +1,7 @@
 import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
-import { runAgent } from "./ai/agent.js"
+import { runAgent } from "./agent.js"
 
 dotenv.config()
 
