@@ -4,25 +4,25 @@ export async function webSearch(query) {
 
  try {
 
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`
 
-  const response = await axios.get(url)
+  const response = await axios.get(url, { timeout: 4000 })
 
   const data = response.data
 
-  if (data.AbstractText) return data.AbstractText
+  if (data.AbstractText && data.AbstractText.length > 20)
+   return data.AbstractText
 
-  if (data.RelatedTopics.length > 0) {
-
+  if (data.RelatedTopics && data.RelatedTopics.length > 0)
    return data.RelatedTopics[0].Text
 
-  }
-
-  return "Nenhum resultado relevante encontrado."
+  return ""
 
  } catch (error) {
 
-  return "Erro ao consultar internet."
+  console.log("web search error:", error.message)
+
+  return ""
 
  }
 
