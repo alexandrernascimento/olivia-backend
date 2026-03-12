@@ -1,20 +1,21 @@
 import fs from "fs"
 
-export async function searchDocs(query){
+export async function ragSearch(query) {
 
-  const docs = JSON.parse(
-    fs.readFileSync("./data/documents.json")
-  )
+ const docs = JSON.parse(
+  fs.readFileSync("./documents.json", "utf8")
+ )
 
-  let results = []
+ const q = query.toLowerCase()
 
-  for(const doc of docs){
+ const matches = docs.filter(doc =>
+  doc.content.toLowerCase().includes(q)
+ )
 
-    if(doc.text.toLowerCase().includes(query.toLowerCase()))
-      results.push(doc.text)
+ if (matches.length === 0) return ""
 
-  }
-
-  return results.join("\n")
+ return matches
+  .map(doc => doc.content)
+  .join("\n")
 
 }
